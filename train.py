@@ -1,3 +1,4 @@
+import os.path
 from argparse import ArgumentParser
 from typing import Any, Union, List
 
@@ -7,12 +8,14 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 from torchvision.transforms import Compose
 from pytorch_lightning import LightningModule, Trainer, LightningDataModule
-from pytorch_lightning.core.optimizer import LightningOptimizer
+from pytorch_lightning import Callback
+import PIL
 
 from jigsawnet import jigsawnet_alexnet
 from processing import ToTensor, GridCrop, Shuffle
 from processing import perm_subset, toImage, solve
 from data import PuzzleDataset
+from plot_utils import im_grid
 
 
 class LitJigSaw(LightningModule):
@@ -78,13 +81,40 @@ class JigsawDataModule(LightningDataModule):
         Wrap Data Module using Lg
     """
 
-    def setup(self, stage):
-        train_transform = Compose([GridCrop(), Shuffle(perm_set=perm_subset(9)), ToTensor()])
-        self.train_dataset = PuzzleDataset("raw-img", transform=train_transform)
+    def __init__(self, dataset=None, train_transforms=None, val_transforms=None, test_transforms=None, dims=None):
+        super().__init__(train_transforms, val_transforms, test_transforms, dims)
+        self.raw_dataset = dataset
+        self.train_dataset = None
 
+    def setup(self, stage) -> None:
+        """
+
+        Args:
+            stage: Train|Test|Val data
+
+        """
+        self.train_dataset = PuzzleDataset(self.raw_dataset, transform=self.train_transforms)
 
     def train_dataloader(self):
-        return DataLoader(dataset=self.train_dataset, num_workers=8, batch_size=4)
+        return DataLoader(dataset=self.train_dataset, num_workers=0, batch_size=4)
+
+
+class FeatureCallback(Callback):
+    """ PL Callback to save feats image"""
+
+    def __init__(self):
+        super().__init__()
+        self.metrics = []
+        self.epoch = 0
+
+    def on_epoch_end(self, trainer, pl_module):
+        self.metrics.append(trainer.callback_metrics)
+        im = im_grid(pl_module.net.features[0].weight)
+        img = PIL.Image.fromarray(im)
+        im_name = os.path.join("lightning_logs", f"features_e{self.epoch}.jpg")
+        img.save(im_name)
+        self.epoch += 1
+        print("Metrics", self.metrics)
 
 
 def main(hparams):
@@ -98,14 +128,16 @@ def main(hparams):
     """
     m = jigsawnet_alexnet(9)
     model = LitJigSaw(m)
-    train_dataset = JigsawDataModule()
-    trainer = Trainer(gpus=1)
+    train_transform = Compose([GridCrop(), Shuffle(perm_set=perm_subset(9)), ToTensor()])
+    train_dataset = JigsawDataModule(hparams.train_dataset, train_transforms=train_transform)
+    trainer = Trainer(gpus=hparams.gpus, callbacks=[FeatureCallback()])
     trainer.fit(model, train_dataset)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--gpus', default=None)
     parser.add_argument('--tile_grid', default=3)
+    parser.add_argument('--train_dataset', default="raw-img")
     args = parser.parse_args()
 
     main(args)

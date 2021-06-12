@@ -44,10 +44,8 @@ def test_dataloader_output():
     data_loader = DataLoader(dataset=train_dataset, batch_size=2)
     for i, batch in enumerate(data_loader):
         im_tile, index = batch
-        print(len(im_tile))
-        print(type(im_tile))
-        print(index)
-        print(type(index))
+        assert im_tile[0] == 2
+        assert isinstance(im_tile[1], int)
         break
 
 test_dataloader_output()

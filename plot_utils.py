@@ -1,47 +1,45 @@
-
+import PIL.Image
+import torch
+from torchvision.utils import make_grid
 from PIL import Image
 import numpy as np
 
-def plot_puzzle(puzzle):
-    Image.fromarray(puzzle).show()
+from processing import solve, toImage
 
 
-def reconstruct_image_from_puzzle(label, sub_images, read_from_pickle=False):
-    if isinstance(sub_images, str) and not read_from_pickle:
-        raise ("Please set read_from_pickle to True")
-
-    if read_from_pickle:
-        sub_images = read_sub_images(sub_images)
-    num_sub_images = len(sub_images)
-    indices = get_permutation_from_label(label, num_sub_images)
-    reconstruction = []
-    for i in range(len(indices)):
-        position = indices.index(i)
-        reconstruction.append(sub_images[position])
-    puzzle = make_puzzle(reconstruction, rows=int(sqrt(num_sub_images)), cols=int(sqrt(num_sub_images)))
-    # TODO tie f
-    # plot_puzzle(puzzle)
-
-
-def reconstruct_image(image: np.array, perm: set) -> None:
+def im_puzzle(puzzle: np.ndarray, im_perm: tuple) -> PIL.Image:
     """
 
-    :param image: tiles of shape (4 tiles,channel 3,tile h,tile w)
-    :param perm: permutation list example: (1, 3, 4 , 2)
-    :return:
-    """
-    tiles = image.shape[0]
-    width = image.shape[2]
-    height = image.shape[3]
-    assert tiles == len(perm)
-    #raise "Not equals permutations"
-    start = 0
+    Args:
+        puzzle: shape T,C,W,H
 
-    for index in perm:
-        np.array().transpose()
-        t = tuple([1,2,3])
-        t.index()
-        s = set([1,2,3])
+    Returns: PIL image
+
+    """
+    sol_x = toImage(solve(puzzle, im_perm))
+    return Image.fromarray(puzzle)
+
+
+def im_grid(features: torch.Tensor) -> np.ndarray:
+    """
+
+    Args:
+        features: Grid Tensor of shape N,C,H,W
+
+    Returns: PIL image
+
+        Note: can use 'from skimage import img_as_ubyte'
+
+        Examples:
+            im_grid(alex_model.features[0].weight)
+    """
+    assert len(features.shape) == 4
+    filters = make_grid(features).detach().cpu().numpy()
+    filters += np.abs(filters.min())
+    filters *= (255.0 / filters.max())
+    filters = filters.clip(0, 255).astype(np.uint8)
+    #img = PIL.Image.fromarray(np.transpose(filters, (2, 1, 0)))
+    return np.transpose(filters, (2, 1, 0))
 
 
 

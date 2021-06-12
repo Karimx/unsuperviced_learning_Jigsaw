@@ -2,6 +2,7 @@ import torch
 
 from jigsawnet import JigsawNetAlex
 
+
 model_defaults = {
     "num_tiles": 9,
     "num_perm": 100,
@@ -21,4 +22,11 @@ def test_im_output():
     model = JigsawNetAlex()
 
 
-test_output()
+def test_extract_1conv_features(model: torch.nn.Module = None):
+    m = JigsawNetAlex(9)
+    print(m.features[0].shape)
+
+
+#test_extract_1conv_features
+test_extract_1conv_features()
+

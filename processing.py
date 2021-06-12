@@ -242,5 +242,3 @@ def toImage(img_tile):
     return im.clip(0, 255).astype(np.uint8)
 
 
-def toPilImage(img_tile):
-    pass

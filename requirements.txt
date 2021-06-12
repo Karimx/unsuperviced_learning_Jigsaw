@@ -4,4 +4,5 @@ torch~=1.7
 pytest
 scikit-image
 pytorch-lightning
+torchvision
 
