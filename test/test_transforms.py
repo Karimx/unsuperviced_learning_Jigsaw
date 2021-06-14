@@ -25,7 +25,7 @@ def gridcrop_class_test():
     grid_transform = GridCrop(GRID, 225)
 
     im_sample = np.random.randn(400, 400, 3).clip(0, 1)
-    im = Image.fromarray((im_sample* 255).astype('uint8'))
+    im = Image.fromarray((im_sample * 255).astype('uint8'))
     new = grid_transform(im)
     print(new.shape)
 

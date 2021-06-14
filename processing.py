@@ -173,8 +173,7 @@ def perm_subset(n, limit=100):
     perm_set = permute(n)
     subset = []
     for y in range(limit):
-        chosen = torch.randint(0, len(perm_set), (1,))[0]
-        # chosen = np.random.choice(len(perm_set), size=1)
+        chosen = torch.randint(0, len(perm_set), (1, ))[0]
         subset.append([perm_set[chosen], y])
     return subset
 

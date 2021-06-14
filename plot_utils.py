@@ -26,7 +26,7 @@ def im_grid(features: torch.Tensor) -> np.ndarray:
     Args:
         features: Grid Tensor of shape N,C,H,W
 
-    Returns: PIL image
+    Returns: Numpy image
 
         Note: can use 'from skimage import img_as_ubyte'
 
@@ -34,11 +34,10 @@ def im_grid(features: torch.Tensor) -> np.ndarray:
             im_grid(alex_model.features[0].weight)
     """
     assert len(features.shape) == 4
-    filters = make_grid(features).detach().cpu().numpy()
+    filters = make_grid(features).numpy()
     filters += np.abs(filters.min())
     filters *= (255.0 / filters.max())
     filters = filters.clip(0, 255).astype(np.uint8)
-    #img = PIL.Image.fromarray(np.transpose(filters, (2, 1, 0)))
     return np.transpose(filters, (2, 1, 0))
 
 

@@ -29,8 +29,9 @@ class LitJigSaw(LightningModule):
         """
         super().__init__()
         self.net = net
+        self.criterion = torch.nn.CrossEntropyLoss()
 
-    def forward(self, x: torch.Tensor) -> Any:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
 
         Args:
@@ -40,7 +41,7 @@ class LitJigSaw(LightningModule):
         Returns: Inference tensor of dim B, 1
 
         """
-        x = self.net(x)
+        x = self.net.forward(x)
         x = torch.log_softmax(x, dim=1)
         return x
 
@@ -51,10 +52,11 @@ class LitJigSaw(LightningModule):
             train_batch:
             batch_idx:
 
-        Returns:
+        Returns: Loss object
 
         """
         x, y = train_batch
+        #x = x.view(x.size(0), -1)
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('train_loss', loss)
@@ -69,11 +71,12 @@ class LitJigSaw(LightningModule):
         Returns:
 
         """
-        optimizer = torch.optim.Adam(self.net.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.net().parameters(), lr=1e-2)
         return optimizer
 
     def cross_entropy_loss(self, logits, labels):
         return F.nll_loss(logits, labels)
+        #return self.criterion(logits, labels)
 
 
 class JigsawDataModule(LightningDataModule):
@@ -93,10 +96,17 @@ class JigsawDataModule(LightningDataModule):
             stage: Train|Test|Val data
 
         """
-        self.train_dataset = PuzzleDataset(self.raw_dataset, transform=self.train_transforms)
+        self.train_dataset = PuzzleDataset("raw-img", transform=self.train_transforms)
 
     def train_dataloader(self):
-        return DataLoader(dataset=self.train_dataset, num_workers=0, batch_size=4)
+        """
+
+        Returns: Set Data loader
+
+            Note : pin_memory if dataset fits is RAM or is batch_szie
+            Note : num_workes need more mem and pag file size
+        """
+        return DataLoader(dataset=self.train_dataset, num_workers=4, batch_size=4, pin_memory=True)
 
 
 class FeatureCallback(Callback):
@@ -107,14 +117,20 @@ class FeatureCallback(Callback):
         self.metrics = []
         self.epoch = 0
 
-    def on_epoch_end(self, trainer, pl_module):
-        self.metrics.append(trainer.callback_metrics)
-        im = im_grid(pl_module.net.features[0].weight)
+    def on_epoch_start(self, trainer, pl_module) -> None:
+        tensor = pl_module.net.features[0].weight.clone().detach().cpu()
+        print("Mean filter", torch.mean(tensor))
+        im_name = os.path.join("lightning_logs", f"features_epoch_{self.epoch}.jpg")
+        im = im_grid(tensor)
         img = PIL.Image.fromarray(im)
-        im_name = os.path.join("lightning_logs", f"features_e{self.epoch}.jpg")
         img.save(im_name)
         self.epoch += 1
-        print("Metrics", self.metrics)
+        print("filters image mean", im.mean())
+
+    def on_epoch_end(self, trainer, pl_module):
+        tensor = pl_module.net.features[0].weight.clone().detach().cpu().numpy()
+        print("Mean filter END", tensor.mean())
+
 
 
 def main(hparams):
@@ -130,8 +146,11 @@ def main(hparams):
     model = LitJigSaw(m)
     train_transform = Compose([GridCrop(), Shuffle(perm_set=perm_subset(9)), ToTensor()])
     train_dataset = JigsawDataModule(hparams.train_dataset, train_transforms=train_transform)
-    trainer = Trainer(gpus=hparams.gpus, callbacks=[FeatureCallback()])
+    # time 6.0 -> 4.2. -> 3.45 -> 3.20
+    # precision=16, -0.06873874
+    trainer = Trainer(gpus=1, callbacks=[FeatureCallback()])
     trainer.fit(model, train_dataset)
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
