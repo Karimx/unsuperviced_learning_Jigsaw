@@ -13,7 +13,7 @@ https://github.com/anilsathyan7/Jigsaw-Net/blob/master/Jigsaw_Net.ipynb
 
 ### To do
 - Change perutation metric
-- Change Jigsaw Alexnet Conv7 n_input feats 9413 -> 512*9
+- To Grayscale Color
 -
 
 ### Change log

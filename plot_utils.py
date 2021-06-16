@@ -11,6 +11,7 @@ def im_puzzle(puzzle: np.ndarray, im_perm: tuple) -> PIL.Image:
     """
 
     Args:
+        im_perm:
         puzzle: shape T,C,W,H
 
     Returns: PIL image

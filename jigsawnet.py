@@ -8,12 +8,12 @@ class AlexNet(nn.Module):
         Custom AlexNet like Unsupervised learning paper
     """
 
-    def __init__(self, n_output_payer=100):
+    def __init__(self, input_channels: int=1, n_output_payer=100):
         super(AlexNet, self).__init__()
         self.num_tiles = 9
         # Alext net input dim 256×256x3
         self.features = nn.Sequential(
-            nn.Conv2d(3, 96, kernel_size=11, stride=2, padding=2),
+            nn.Conv2d(input_channels, 96, kernel_size=11, stride=2, padding=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
             nn.Conv2d(96, 256, kernel_size=5, padding=2),
@@ -29,25 +29,20 @@ class AlexNet(nn.Module):
             nn.Flatten()
         )
 
-
+        # intermediate feature representation F
         self.flatten_feats = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Flatten(0),
+            nn.Flatten(0),  # concat simulation (9, 512) -> (1, 4608)
         )
-
-        # Not used
-        self.avgpool = nn.AdaptiveAvgPool2d((2, 2))
 
         # Concatenated nineth networks
         self.clasif_concatenated = nn.Sequential(
             nn.Linear(512 * 9, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, n_output_payer)
-
-        )
+            nn.Linear(4096, n_output_payer))
 
 
 class JigsawNetAlex(AlexNet):
@@ -79,7 +74,7 @@ class JigsawNetAlex(AlexNet):
         con = []
         for batch in range(0, x.shape[0]):
 
-            # return (9, 1024)
+            # get (9, 1024)
             tile = self.features(x[batch, :, :, :, :])
 
             # return (9, 512)

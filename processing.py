@@ -1,7 +1,7 @@
 from typing import Union, Any, List
 
 import torch
-import PIL.Image
+from PIL import Image, ImageOps
 import numpy as np
 from torchvision import transforms
 from skimage.util.shape import view_as_blocks
@@ -62,9 +62,10 @@ class GridCrop:
         self.tile_w = center_crop // self.col
         self.tile_h = center_crop // self.row
         self.grid_crop = grid_crop
-        self.center_gridcrop = CenterCrop(self.grid_crop, pad=5)
+        self.center_gridcrop = CenterCrop((self.grid_crop, self.grid_crop), pad=5)
+        self.channels = channels
 
-    def __call__(self, sample_image: PIL.Image, transform=None):
+    def __call__(self, sample_image: Image, transform=None):
         """
 
         Args:
@@ -76,15 +77,19 @@ class GridCrop:
         """
         w, h = sample_image.size
         if h < self.center:
-            sample_image = sample_image.resize((w, self.center), resample=PIL.Image.BICUBIC)
+            #h = self.center
+            sample_image = sample_image.resize((w, self.center), resample=Image.BICUBIC)
         if w < self.center:
             w, h = sample_image.size
-            sample_image = sample_image.resize((self.center, h), resample=PIL.Image.BICUBIC)
+            sample_image = sample_image.resize((self.center, h), resample=Image.BICUBIC)
+
         img = np.asarray(self.center_crop(sample_image))
+        img = img.reshape(225, 225, self.channels)
+
         img = img.transpose(2, 1, 0)
-        v = view_as_blocks(img, block_shape=(3, self.tile_w, self.tile_h))
+        v = view_as_blocks(img, block_shape=(self.channels, self.tile_w, self.tile_h))
         v = np.squeeze(v, 0)
-        tiles = np.zeros((9, 3, self.grid_crop, self.grid_crop))
+        tiles = np.zeros((9, self.channels, self.grid_crop, self.grid_crop))
         tile = 0
         for r in range(self.col):
             for c in range(self.row):
@@ -102,7 +107,7 @@ class Shuffle:
         self.permutation_ser = perm_set
         # torch.random.manual_seed(1567)
 
-    def __call__(self, im_tiles) -> tuple:
+    def __call__(self, im_tiles: np.ndarray) -> tuple:
         """ shuffle tile image
 
         Args:
@@ -133,13 +138,28 @@ class ToTensor:
 
 class ToArray:
     """
-        PIL Image to numpy array
+        4 Image to numpy array
     """
 
-    def __call__(self, image: PIL.Image) -> np.ndarray:
-        arr = np.array(image.resize((225, 255), resample=PIL.Image.BICUBIC))
+    def __call__(self, image: Image) -> np.ndarray:
+        arr = np.array(image.resize((225, 255), resample=Image.BICUBIC))
         # PIL.Image.Image.resize()
         return arr
+
+
+class GrayScale:
+
+    def __call__(self, image: Image):
+        """
+
+        Args:
+            image: PIL Image to be converted
+
+        Returns:
+
+        """
+        return ImageOps.grayscale(image)
+        #return image.convert('LA')
 
 
 def solve(im_tiles: np.ndarray, order: tuple):
@@ -153,6 +173,7 @@ def solve(im_tiles: np.ndarray, order: tuple):
 
     """
     n_tiles = len(order)
+
     assert im_tiles.shape[0] == n_tiles
     s = np.empty_like(im_tiles)
     for i in range(len(order)):

@@ -12,8 +12,7 @@ from pytorch_lightning import Callback
 import PIL
 
 from jigsawnet import jigsawnet_alexnet
-from processing import ToTensor, GridCrop, Shuffle
-from processing import perm_subset, toImage, solve
+from processing import GrayScale, GridCrop, Shuffle
 from data import PuzzleDataset
 from plot_utils import im_grid
 
@@ -29,21 +28,10 @@ class LitJigSaw(LightningModule):
         """
         super().__init__()
         self.net = net
-        self.criterion = torch.nn.CrossEntropyLoss()
+        #self.criterion = torch.nn.CrossEntropyLoss()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-
-        Args:
-            x: tiles input of dim (B,T,C,W,H)
-                Batch, Tiles, Channels, Width, Height
-
-        Returns: Inference tensor of dim B, 1
-
-        """
-        x = self.net.forward(x)
-        x = torch.log_softmax(x, dim=1)
-        return x
+    def forward(self, x) -> Any:
+        return self.net(x)
 
     def training_step(self, train_batch, batch_idx):
         """
@@ -55,11 +43,14 @@ class LitJigSaw(LightningModule):
         Returns: Loss object
 
         """
-        x, y = train_batch
-        #x = x.view(x.size(0), -1)
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        self.log('train_loss', loss)
+        loss = 0
+        for list_batch in train_batch:
+            x, y = list_batch
+            #x, y = train_batch
+            # z = self(x)  # < ---------- instead of self.encoder(x)
+            logits = torch.log_softmax(self(x), dim=1)
+            loss += self.cross_entropy_loss(logits, y)
+            self.log('train_loss', loss)
         return loss
 
     def configure_optimizers(self):
@@ -71,7 +62,7 @@ class LitJigSaw(LightningModule):
         Returns:
 
         """
-        optimizer = torch.optim.Adam(self.net().parameters(), lr=1e-2)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-2)
         return optimizer
 
     def cross_entropy_loss(self, logits, labels):
@@ -106,7 +97,7 @@ class JigsawDataModule(LightningDataModule):
             Note : pin_memory if dataset fits is RAM or is batch_szie
             Note : num_workes need more mem and pag file size
         """
-        return DataLoader(dataset=self.train_dataset, num_workers=4, batch_size=4, pin_memory=True)
+        return DataLoader(dataset=self.train_dataset, num_workers=4, batch_size=2, pin_memory=True)
 
 
 class FeatureCallback(Callback):
@@ -125,10 +116,12 @@ class FeatureCallback(Callback):
         img = PIL.Image.fromarray(im)
         img.save(im_name)
         self.epoch += 1
-        print("filters image mean", im.mean())
+        print("filters IMAGE mean", im.mean())
+        print()
 
     def on_epoch_end(self, trainer, pl_module):
         tensor = pl_module.net.features[0].weight.clone().detach().cpu().numpy()
+        print()
         print("Mean filter END", tensor.mean())
 
 
@@ -144,11 +137,12 @@ def main(hparams):
     """
     m = jigsawnet_alexnet(9)
     model = LitJigSaw(m)
-    train_transform = Compose([GridCrop(), Shuffle(perm_set=perm_subset(9)), ToTensor()])
+    train_transform = Compose([GrayScale(), GridCrop(channels=1)])
     train_dataset = JigsawDataModule(hparams.train_dataset, train_transforms=train_transform)
-    # time 6.0 -> 4.2. -> 3.45 -> 3.20
-    # precision=16, -0.06873874
-    trainer = Trainer(gpus=1, callbacks=[FeatureCallback()])
+
+    # precision=16, -0.06873874, limit_train_batches=50,
+
+    trainer = Trainer(gpus=1, callbacks=[FeatureCallback()], overfit_batches=0.01, limit_train_batches=32, weights_summary='full', max_epochs=2)
     trainer.fit(model, train_dataset)
 
 
